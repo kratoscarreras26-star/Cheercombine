@@ -271,6 +271,25 @@ body {
   background: transparent; color: var(--cp-warning); font-size: 0.8125rem; cursor: pointer; transition: all 0.15s;
 }
 .fav-toggle.active { background: var(--cp-warning); color: #1a1a1a; }
+.export-wrap { position: relative; display: inline-block; }
+.export-csv-btn {
+  padding: 0.375rem 0.75rem; border: 1px solid var(--cp-success,#22c55e); border-radius: 0.625rem;
+  background: transparent; color: var(--cp-success,#22c55e); font-size: 0.8125rem; cursor: pointer; transition: all 0.15s;
+}
+.export-csv-btn:hover { background: var(--cp-success,#22c55e); color: #fff; }
+.export-csv-btn:disabled { opacity: 0.4; cursor: default; }
+.export-menu {
+  display: none; position: absolute; right: 0; top: 100%; margin-top: 0.375rem; min-width: 180px;
+  background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 0.625rem;
+  box-shadow: var(--cp-shadow); z-index: 200; overflow: hidden;
+}
+.export-menu.open { display: block; }
+.export-menu button {
+  display: block; width: 100%; padding: 0.625rem 1rem; border: none; background: none;
+  color: var(--cp-text); font-size: 0.875rem; text-align: left; cursor: pointer;
+}
+.export-menu button:hover { background: var(--cp-accent-soft); }
+.export-menu button + button { border-top: 1px solid var(--cp-border); }
 .no-results { text-align: center; padding: 3rem 1rem; color: var(--cp-text-muted); font-size: 1.125rem; }
 
 .card-header { display: flex; align-items: center; gap: 1rem; }
@@ -334,7 +353,7 @@ body {
     background: var(--cp-overlay);
   }
   .is-mobile .search-input { min-width: 0; font-size: 1rem; padding: 0.625rem 0.875rem; border-radius: 10px; }
-  .is-mobile .view-toggle, .is-mobile .fav-toggle, .is-mobile #listView { display: none !important; }
+  .is-mobile .view-toggle, .is-mobile .fav-toggle, .is-mobile .export-csv-btn, .is-mobile #listView { display: none !important; }
   .is-mobile .sort-row {
     overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none;
     -webkit-overflow-scrolling: touch; gap: 0.375rem; margin-top: 0.5rem !important;
@@ -463,6 +482,14 @@ body {
           <button id="listViewBtn" title="List View">&#9776; List</button>
         </div>
         <button class="fav-toggle" id="favToggle" title="Show Favorites Only">&#9733; My List</button>
+        <div class="export-wrap">
+          <button class="export-csv-btn" id="exportCsvBtn" title="Export to CSV" onclick="toggleExportMenu(event)">&#11015; Export CSV</button>
+          <div class="export-menu" id="exportMenu">
+            <button onclick="exportCsv('all')">&#128203; Export All Schools</button>
+            <button onclick="exportCsv('filtered')">&#128269; Export Current View</button>
+            <button onclick="exportCsv('starred')">&#11088; Export Starred Only</button>
+          </div>
+        </div>
       </div>
       <div class="sort-row" style="margin-top:0.625rem">
         <span class="lbl">Sort:</span>
@@ -504,6 +531,36 @@ function isFav(n) { return favorites.includes(n); }
 function toggleFav(n) {
   if (isFav(n)) favorites = favorites.filter(x => x !== n); else favorites.push(n);
   saveFavs(); render();
+}
+function toggleExportMenu(e) { e.stopPropagation(); document.getElementById('exportMenu').classList.toggle('open'); }
+document.addEventListener('click', function() { document.getElementById('exportMenu').classList.remove('open'); });
+function exportCsv(mode) {
+  document.getElementById('exportMenu').classList.remove('open');
+  var list = mode === 'starred' ? DATA.filter(function(s) { return isFav(s.name); }) : mode === 'filtered' ? getFiltered() : DATA;
+  if (!list.length) { alert(mode === 'starred' ? "No starred schools to export. Tap the \u2605 on a school first!" : mode === 'filtered' ? "No schools match your current filters." : "No schools to export."); return; }
+  var csvEsc = function(v) { v = String(v||""); return v.indexOf(",")>-1||v.indexOf('"')>-1||v.indexOf("\n")>-1 ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  var headers = ["School","Location","Conference","Division","Website","Programs","Sports Supported","Brand","Benefits","Tryout Info","Coach Name","Coach Title","Coach Email","Coach Phone","Instagram","Twitter","TikTok","Facebook"];
+  var rows = [headers.join(",")];
+  list.forEach(function(s) {
+    var coach = s.coaches && s.coaches[0] ? s.coaches[0] : {};
+    var socialMap = {};
+    (s.socials||[]).forEach(function(x) { socialMap[x.platform.toLowerCase()] = x.handle||x.url||""; });
+    rows.push([
+      csvEsc(s.name), csvEsc(s.location), csvEsc(s.conference), csvEsc(s.division),
+      csvEsc(s.website), csvEsc((s.programs||[]).join("; ")), csvEsc((s.sports||[]).join("; ")),
+      csvEsc(s.brand), csvEsc((s.benefits||[]).join("; ")), csvEsc(s.tryout_info),
+      csvEsc((coach.first_name||"")+" "+(coach.last_name||"")).trim(), csvEsc(coach.title),
+      csvEsc(coach.email), csvEsc(coach.show_cell ? coach.cell : ""),
+      csvEsc(socialMap.instagram||""), csvEsc(socialMap.twitter||socialMap.x||""),
+      csvEsc(socialMap.tiktok||""), csvEsc(socialMap.facebook||"")
+    ].join(","));
+  });
+  var blob = new Blob([rows.join("\n")], {type:"text/csv;charset=utf-8;"});
+  var link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = mode === 'starred' ? "my_starred_schools.csv" : mode === 'filtered' ? "filtered_schools.csv" : "all_schools.csv";
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 const allPrograms = new Set(), allConfs = new Set(), allBrands = new Set(), allBenefits = new Set(), allTryouts = new Set();
 let coachCount = 0;
@@ -856,6 +913,7 @@ document.querySelectorAll(".list-table th[data-col]").forEach(th => {
   nav.innerHTML = '<button class="bnav-btn active" data-action="home"><span class="bnav-icon">\u{1F3E0}</span><span class="bnav-label">Schools</span></button>'
     + '<button class="bnav-btn" data-action="search"><span class="bnav-icon">\u{1F50D}</span><span class="bnav-label">Search</span></button>'
     + '<button class="bnav-btn" data-action="favs"><span class="bnav-icon">\u2B50</span><span class="bnav-label">My List</span></button>'
+    + '<button class="bnav-btn" data-action="export"><span class="bnav-icon">\u{1F4E5}</span><span class="bnav-label">Export</span></button>'
     + '<button class="bnav-btn" data-action="filter"><span class="bnav-icon">\u2630</span><span class="bnav-label">Filters</span></button>';
   document.body.appendChild(nav);
 
@@ -893,6 +951,7 @@ document.querySelectorAll(".list-table th[data-col]").forEach(th => {
     btn.addEventListener('click', function() {
       var action = btn.dataset.action;
       if (action === 'filter') { openDrawer(); return; }
+      if (action === 'export') { toggleExportMenu(e); return; }
       closeDrawer();
       if (action === 'search') {
         var input = document.getElementById('searchInput');
