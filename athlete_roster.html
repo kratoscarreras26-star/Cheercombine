@@ -290,6 +290,26 @@ body {
 }
 .export-menu button:hover { background: var(--cp-accent-soft); }
 .export-menu button + button { border-top: 1px solid var(--cp-border); }
+.export-sheet-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 9998;
+}
+.export-sheet-overlay.open { display: block; }
+.export-sheet {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
+  background: var(--cp-surface); border-radius: 16px 16px 0 0;
+  padding: 0.5rem 0 calc(env(safe-area-inset-bottom,0px) + 0.5rem);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
+  transform: translateY(100%); transition: transform 0.25s ease-out;
+}
+.export-sheet.open { transform: translateY(0); }
+.export-sheet .sheet-handle { width: 36px; height: 4px; background: var(--cp-border-strong); border-radius: 2px; margin: 0.5rem auto 0.75rem; }
+.export-sheet button {
+  display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 1rem 1.5rem;
+  border: none; background: none; color: var(--cp-text); font-size: 1rem; text-align: left; cursor: pointer;
+}
+.export-sheet button:active { background: var(--cp-accent-soft); }
+.export-sheet button + button { border-top: 1px solid var(--cp-border); }
+.export-sheet .sheet-cancel { color: var(--cp-danger); font-weight: 600; justify-content: center; }
 .no-results { text-align: center; padding: 3rem 1rem; color: var(--cp-text-muted); font-size: 1.125rem; }
 
 /* ===== MOBILE EXPERIENCE ===== */
@@ -596,6 +616,8 @@ function toggleFav(key) {
 }
 function toggleExportMenu(e) { e.stopPropagation(); document.getElementById('exportMenu').classList.toggle('open'); }
 document.addEventListener('click', function() { document.getElementById('exportMenu').classList.remove('open'); });
+function openExportSheet() { document.getElementById('exportSheetOverlay').classList.add('open'); document.getElementById('exportSheet').classList.add('open'); }
+function closeExportSheet() { document.getElementById('exportSheetOverlay').classList.remove('open'); document.getElementById('exportSheet').classList.remove('open'); }
 function exportCsv(mode) {
   document.getElementById('exportMenu').classList.remove('open');
   var list = mode === 'starred' ? DATA.filter(function(a) { return isFav(a); }) : mode === 'filtered' ? getFiltered() : DATA;
@@ -1003,7 +1025,7 @@ document.querySelectorAll(".list-table th[data-col]").forEach(th => {
     btn.addEventListener('click', function() {
       var action = btn.dataset.action;
       if (action === 'filter') { openDrawer(); return; }
-      if (action === 'export') { toggleExportMenu(e); return; }
+      if (action === 'export') { openExportSheet(); return; }
       closeDrawer();
       if (action === 'search') {
         var input = document.getElementById('searchInput');
@@ -1045,5 +1067,13 @@ document.querySelectorAll(".list-table th[data-col]").forEach(th => {
 
 </script>
 </div><!-- /appContent -->
+<div class="export-sheet-overlay" id="exportSheetOverlay" onclick="closeExportSheet()"></div>
+<div class="export-sheet" id="exportSheet">
+  <div class="sheet-handle"></div>
+  <button onclick="closeExportSheet();exportCsv('all')">📋 Export All Athletes</button>
+  <button onclick="closeExportSheet();exportCsv('filtered')">🔍 Export Current View</button>
+  <button onclick="closeExportSheet();exportCsv('starred')">⭐ Export Starred Only</button>
+  <button class="sheet-cancel" onclick="closeExportSheet()">Cancel</button>
+</div>
 </body>
 </html>
